@@ -310,10 +310,28 @@ class MainActivity : FlutterActivity() {
         val event = UsageEvents.Event()
         var lastForegroundApp: String? = null
 
+        // Packages to ignore: Refocus itself + Android launchers/system
+        val ignoredPrefixes = listOf(
+            packageName,                          // com.example.refocus
+            "com.android.launcher",
+            "com.google.android.launcher",
+            "com.miui.home",
+            "com.sec.android.app.launcher",
+            "com.huawei.android.launcher",
+            "com.oneplus.launcher",
+            "com.coloros.launcher",
+            "com.oppo.launcher",
+            "com.vivo.launcher"
+        )
+
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
-                lastForegroundApp = event.packageName
+                val pkg = event.packageName ?: continue
+                // Skip Refocus itself and launchers — these are not distracting apps
+                if (ignoredPrefixes.none { pkg.startsWith(it) }) {
+                    lastForegroundApp = pkg
+                }
             }
         }
         return lastForegroundApp

@@ -167,8 +167,14 @@ class ProtectionNotifier extends ChangeNotifier {
     final lower = appOrPkg.toLowerCase();
     for (final p in _protectedApps) {
       final pLower = p.toLowerCase();
-      if (lower.contains(pLower) || pLower.contains(lower)) {
-        return true;
+      // Exact match
+      if (lower == pLower) return true;
+      // Only do fuzzy/substring match when neither side is a full package name
+      // (package names contain dots, e.g. com.zhiliaoapp.musically)
+      final queryIsPackage = lower.contains('.');
+      final storedIsPackage = pLower.contains('.');
+      if (!queryIsPackage && !storedIsPackage) {
+        if (lower.contains(pLower) || pLower.contains(lower)) return true;
       }
     }
     return false;
