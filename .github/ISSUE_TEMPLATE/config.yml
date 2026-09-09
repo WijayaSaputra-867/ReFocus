@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: GitHub Discussions
+    url: https://github.com/your-repo/refocus/discussions
+    about: Ask questions, discuss ideas, and connect with the community.

@@ -1,0 +1,39 @@
+name: Bug Report
+description: Create a report to help improve Refocus
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thank you for reporting a bug. Please ensure you do not share any sensitive personal information.
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Step-by-step instructions to reproduce the issue.
+      placeholder: |
+        1. Open Refocus
+        2. Go to 'Apps' screen
+        3. Tap on...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Device & OS
+      placeholder: "e.g. Pixel 7, Android 14, Refocus v0.1"
+    validations:
+      required: true
