@@ -1,6 +1,10 @@
 package com.example.refocus
 
 import android.app.AppOpsManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
@@ -69,8 +73,8 @@ class MainActivity : FlutterActivity() {
                     result.success(true)
                 }
                 "showOverlayBlocker" -> {
-                    val title = call.argument<String>("title") ?: "Refocus"
-                    val message = call.argument<String>("message") ?: "Aplikasi ini sedang dalam masa proteksi."
+                    val title = call.argument<String>("title") ?: "Waktunya Istirahat"
+                    val message = call.argument<String>("message") ?: "Aplikasi ini diblokir sementara."
                     val seconds = call.argument<Int>("seconds") ?: 5
                     showOverlayBlocker(title, message, seconds)
                     result.success(true)
@@ -141,7 +145,59 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun sendBlockerNotification(title: String, message: String) {
+        val appContext = applicationContext
+        val nm = appContext.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        val channelId = "refocus_alert_channel"
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Refocus Peringatan & Blokir",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifikasi muncul saat batas waktu habis atau aplikasi diblokir"
+                enableVibration(true)
+                setShowBadge(true)
+            }
+            nm.createNotificationChannel(channel)
+        }
+
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName) ?: Intent(this, MainActivity::class.java)
+        launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val pendingIntent = PendingIntent.getActivity(
+            appContext,
+            1002,
+            launchIntent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            else
+                PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(appContext, channelId)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(appContext)
+        }
+
+        val notif = builder
+            .setContentTitle(title)
+            .setContentText(message)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(Notification.PRIORITY_HIGH)
+            .setDefaults(Notification.DEFAULT_ALL)
+            .build()
+
+        nm.notify(2002, notif)
+    }
+
     private fun showOverlayBlocker(title: String, message: String, durationSeconds: Int) {
+        sendBlockerNotification(title, message)
+
         if (!hasOverlayPermission()) {
             // Fallback if overlay permission is missing: immediately kick to home screen
             kickToHomeScreen()

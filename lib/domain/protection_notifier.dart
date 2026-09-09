@@ -80,16 +80,18 @@ class ProtectionNotifier extends ChangeNotifier {
 
     final savedCooldown = _prefs.getInt(_kCooldownRemaining) ?? 0;
     final savedElapsed = _prefs.getInt(_kElapsed) ?? 0;
-    final sessions = _prefs.getInt(_kSessions) ?? 0;
+    final rawSessions = _prefs.getInt(_kSessions) ?? 0;
+    final sessions = rawSessions.clamp(0, _settings.dailySessionLimit);
     final enabled = _prefs.getBool(_kEnabled) ?? true;
     final totalDistraction = _prefs.getInt(_kTotalDistraction) ?? 0;
     final resisted = _prefs.getInt(_kResisted) ?? 0;
 
+    final isLocked = sessions >= _settings.dailySessionLimit;
     _snap = ProtectionSnapshot(
-      status: savedStatus,
-      elapsedSeconds: savedElapsed,
+      status: isLocked ? ProtectionStatus.dailyLocked : savedStatus,
+      elapsedSeconds: isLocked ? 0 : savedElapsed,
       sessionsToday: sessions,
-      cooldownRemainingSeconds: savedCooldown,
+      cooldownRemainingSeconds: isLocked ? 0 : savedCooldown,
       protectionEnabled: enabled,
       totalDistractionSecondsToday: totalDistraction,
       resistedToday: resisted,
@@ -230,6 +232,16 @@ class ProtectionNotifier extends ChangeNotifier {
     _prefs.setInt(_kTrigger, s.triggerSeconds);
     _prefs.setInt(_kLimit, s.dailySessionLimit);
     _prefs.setInt(_kCooldown, s.cooldownSeconds);
+    if (_snap.sessionsToday >= s.dailySessionLimit &&
+        _snap.status != ProtectionStatus.dailyLocked) {
+      _stopTicker();
+      _snap = _snap.copyWith(
+        status: ProtectionStatus.dailyLocked,
+        elapsedSeconds: 0,
+        cooldownRemainingSeconds: 0,
+      );
+      _saveSnap();
+    }
     notifyListeners();
   }
 
@@ -293,6 +305,7 @@ class ProtectionNotifier extends ChangeNotifier {
       if (foregroundApp == null || foregroundApp.isEmpty) return;
 
       if (_snap.status == ProtectionStatus.dailyLocked ||
+          _snap.sessionsToday >= _settings.dailySessionLimit ||
           _snap.status == ProtectionStatus.cooldown) {
         if (isAppProtected(foregroundApp)) {
           _triggerOverlayBlocker(foregroundApp);
@@ -317,7 +330,14 @@ class ProtectionNotifier extends ChangeNotifier {
   void onAppForegrounded(String appName) {
     if (!_snap.protectionEnabled) return;
     if (_snap.status == ProtectionStatus.dailyLocked ||
+        _snap.sessionsToday >= _settings.dailySessionLimit ||
         _snap.status == ProtectionStatus.cooldown) {
+      if (_snap.status != ProtectionStatus.dailyLocked &&
+          _snap.sessionsToday >= _settings.dailySessionLimit) {
+        _snap = _snap.copyWith(status: ProtectionStatus.dailyLocked);
+        _saveSnap();
+        notifyListeners();
+      }
       _triggerOverlayBlocker(appName);
       return;
     }
@@ -348,7 +368,7 @@ class ProtectionNotifier extends ChangeNotifier {
       final nextElapsed = _snap.elapsedSeconds + 1;
       final nextTotal = _snap.totalDistractionSecondsToday + 1;
       if (nextElapsed >= _settings.triggerSeconds) {
-        final nextSessions = _snap.sessionsToday + 1;
+        final nextSessions = (_snap.sessionsToday + 1).clamp(0, _settings.dailySessionLimit);
         if (nextSessions >= _settings.dailySessionLimit) {
           _stopTicker();
           _snap = _snap.copyWith(
@@ -387,9 +407,9 @@ class ProtectionNotifier extends ChangeNotifier {
       final remaining = _snap.cooldownRemainingSeconds - 1;
       if (remaining <= 0) {
         _stopTicker();
-        // Cooldown finished without user re-entering — count as resisted
+        final isMax = _snap.sessionsToday >= _settings.dailySessionLimit;
         _snap = _snap.copyWith(
-          status: ProtectionStatus.idle,
+          status: isMax ? ProtectionStatus.dailyLocked : ProtectionStatus.idle,
           cooldownRemainingSeconds: 0,
           resistedToday: _snap.resistedToday + 1,
         );
@@ -466,8 +486,8 @@ class ProtectionNotifier extends ChangeNotifier {
       elapsedSeconds: next == ProtectionStatus.distracting ? 142 : 0,
       cooldownRemainingSeconds: next == ProtectionStatus.cooldown ? 840 : 0,
       sessionsToday: next == ProtectionStatus.cooldown
-          ? _snap.sessionsToday + 1
-          : _snap.sessionsToday,
+          ? (_snap.sessionsToday + 1).clamp(0, _settings.dailySessionLimit)
+          : _snap.sessionsToday.clamp(0, _settings.dailySessionLimit),
     );
     if (next == ProtectionStatus.cooldown) {
       _startCooldownTicker();
