@@ -14,6 +14,9 @@ class ProtectionNotifier extends ChangeNotifier {
     final n = ProtectionNotifier._();
     await n._load();
     n._startForegroundWatcher();
+    if (n._snap.protectionEnabled) {
+      PlatformService.startForegroundService();
+    }
     return n;
   }
 
@@ -194,9 +197,11 @@ class ProtectionNotifier extends ChangeNotifier {
     _saveSnap();
     if (enabled) {
       _startForegroundWatcher();
+      PlatformService.startForegroundService();
     } else {
       _watcher?.cancel();
       _watcher = null;
+      PlatformService.stopForegroundService();
     }
     notifyListeners();
   }

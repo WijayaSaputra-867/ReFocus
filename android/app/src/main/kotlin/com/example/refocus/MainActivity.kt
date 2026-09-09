@@ -60,6 +60,14 @@ class MainActivity : FlutterActivity() {
                     requestOverlayPermission()
                     result.success(true)
                 }
+                "startForegroundService" -> {
+                    RefocusForegroundService.startService(this)
+                    result.success(true)
+                }
+                "stopForegroundService" -> {
+                    RefocusForegroundService.stopService(this)
+                    result.success(true)
+                }
                 "showOverlayBlocker" -> {
                     val title = call.argument<String>("title") ?: "Refocus"
                     val message = call.argument<String>("message") ?: "Aplikasi ini sedang dalam masa proteksi."

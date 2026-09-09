@@ -108,4 +108,16 @@ class PlatformService {
       await _channel.invokeMethod<void>('kickToHomeScreen');
     } catch (_) {}
   }
+
+  static Future<void> startForegroundService() async {
+    try {
+      await _channel.invokeMethod<void>('startForegroundService');
+    } catch (_) {}
+  }
+
+  static Future<void> stopForegroundService() async {
+    try {
+      await _channel.invokeMethod<void>('stopForegroundService');
+    } catch (_) {}
+  }
 }
