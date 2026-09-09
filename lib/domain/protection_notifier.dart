@@ -201,6 +201,32 @@ class ProtectionNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  String _currentForegroundApp = '';
+  DateTime? _lastBlockerShownAt;
+
+  void _triggerOverlayBlocker(String appName, {bool? isDailyLock}) {
+    final now = DateTime.now();
+    if (_lastBlockerShownAt != null &&
+        now.difference(_lastBlockerShownAt!).inSeconds < 6) {
+      return;
+    }
+    _lastBlockerShownAt = now;
+
+    final isLock =
+        isDailyLock ?? (_snap.status == ProtectionStatus.dailyLocked);
+    final title = isLock ? 'Batas Harian Tercapai' : 'Waktunya Istirahat';
+    final displayName = appName.isNotEmpty ? appName : 'Aplikasi ini';
+    final message = isLock
+        ? 'Jatah sesi harian Anda untuk aplikasi ini sudah habis. Kembali lagi besok.'
+        : '$displayName sedang dalam masa jeda (cooldown). Tarik napas sejenak.';
+
+    PlatformService.showOverlayBlocker(
+      title: title,
+      message: message,
+      seconds: 5,
+    );
+  }
+
   // ── Native Foreground Watcher (FR-04, FR-05, FR-06) ──────────────────────
 
   void _startForegroundWatcher() {
@@ -208,13 +234,17 @@ class ProtectionNotifier extends ChangeNotifier {
     // Poll foreground app every 1 second via Android UsageStats
     _watcher = Timer.periodic(const Duration(seconds: 1), (_) async {
       if (!_snap.protectionEnabled) return;
-      if (_snap.status == ProtectionStatus.dailyLocked ||
-          _snap.status == ProtectionStatus.cooldown) {
-        return;
-      }
 
       final foregroundApp = await PlatformService.getForegroundApp();
       if (foregroundApp == null || foregroundApp.isEmpty) return;
+
+      if (_snap.status == ProtectionStatus.dailyLocked ||
+          _snap.status == ProtectionStatus.cooldown) {
+        if (isAppProtected(foregroundApp)) {
+          _triggerOverlayBlocker(foregroundApp);
+        }
+        return;
+      }
 
       if (isAppProtected(foregroundApp)) {
         if (_snap.status != ProtectionStatus.distracting) {
@@ -232,10 +262,14 @@ class ProtectionNotifier extends ChangeNotifier {
 
   void onAppForegrounded(String appName) {
     if (!_snap.protectionEnabled) return;
-    if (_snap.status == ProtectionStatus.dailyLocked) return;
-    if (_snap.status == ProtectionStatus.cooldown) return;
+    if (_snap.status == ProtectionStatus.dailyLocked ||
+        _snap.status == ProtectionStatus.cooldown) {
+      _triggerOverlayBlocker(appName);
+      return;
+    }
 
     if (isAppProtected(appName)) {
+      _currentForegroundApp = appName;
       _snap = _snap.copyWith(status: ProtectionStatus.distracting);
       _startDistractionTicker();
       _saveSnap();
@@ -270,6 +304,7 @@ class ProtectionNotifier extends ChangeNotifier {
             cooldownRemainingSeconds: 0,
             totalDistractionSecondsToday: nextTotal,
           );
+          _triggerOverlayBlocker(_currentForegroundApp, isDailyLock: true);
         } else {
           _snap = _snap.copyWith(
             status: ProtectionStatus.cooldown,
@@ -279,6 +314,7 @@ class ProtectionNotifier extends ChangeNotifier {
             totalDistractionSecondsToday: nextTotal,
           );
           _startCooldownTicker();
+          _triggerOverlayBlocker(_currentForegroundApp, isDailyLock: false);
         }
       } else {
         _snap = _snap.copyWith(

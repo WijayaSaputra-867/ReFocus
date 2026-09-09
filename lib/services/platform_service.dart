@@ -73,4 +73,39 @@ class PlatformService {
       await _channel.invokeMethod<void>('requestIgnoreBatteryOptimization');
     } catch (_) {}
   }
+
+  static Future<bool> hasOverlayPermission() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('hasOverlayPermission');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> requestOverlayPermission() async {
+    try {
+      await _channel.invokeMethod<void>('requestOverlayPermission');
+    } catch (_) {}
+  }
+
+  static Future<void> showOverlayBlocker({
+    required String title,
+    required String message,
+    int seconds = 5,
+  }) async {
+    try {
+      await _channel.invokeMethod<void>('showOverlayBlocker', {
+        'title': title,
+        'message': message,
+        'seconds': seconds,
+      });
+    } catch (_) {}
+  }
+
+  static Future<void> kickToHomeScreen() async {
+    try {
+      await _channel.invokeMethod<void>('kickToHomeScreen');
+    } catch (_) {}
+  }
 }

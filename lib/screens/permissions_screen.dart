@@ -16,6 +16,7 @@ class _PermissionsScreenState extends State<PermissionsScreen>
     with WidgetsBindingObserver {
   bool _hasUsage = false;
   bool _hasBattery = false;
+  bool _hasOverlay = false;
   bool _loading = true;
 
   @override
@@ -41,10 +42,12 @@ class _PermissionsScreenState extends State<PermissionsScreen>
     setState(() => _loading = true);
     final usage = await PlatformService.hasUsagePermission();
     final battery = await PlatformService.hasBatteryOptimizationIgnored();
+    final overlay = await PlatformService.hasOverlayPermission();
     if (mounted) {
       setState(() {
         _hasUsage = usage;
         _hasBattery = battery;
+        _hasOverlay = overlay;
         _loading = false;
       });
     }
@@ -92,6 +95,18 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                   granted: _hasUsage,
                   onFix: () async {
                     await PlatformService.requestUsagePermission();
+                  },
+                ),
+                const SizedBox(height: 12),
+                _PermissionCard(
+                  icon: Icons.layers_outlined,
+                  title: 'Display Over Other Apps',
+                  description:
+                      'Displays the 5-second countdown blocker over distracting apps '
+                      'when your session ends or cooldown is active, then closes them.',
+                  granted: _hasOverlay,
+                  onFix: () async {
+                    await PlatformService.requestOverlayPermission();
                   },
                 ),
                 const SizedBox(height: 12),
