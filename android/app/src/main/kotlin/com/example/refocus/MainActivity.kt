@@ -306,11 +306,11 @@ class MainActivity : FlutterActivity() {
     private fun getForegroundApp(): String? {
         val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return null
         val time = System.currentTimeMillis()
-        val events = usm.queryEvents(time - 15000, time)
+        // Query 60-minute window so active app remains tracked even if user stays in it without switching
+        val events = usm.queryEvents(time - 3600000L, time)
         val event = UsageEvents.Event()
-        var lastForegroundApp: String? = null
+        var currentPkg: String? = null
 
-        // Packages to ignore: Refocus itself + Android launchers/system
         val ignoredPrefixes = listOf(
             packageName,                          // com.example.refocus
             "com.android.launcher",
@@ -326,15 +326,21 @@ class MainActivity : FlutterActivity() {
 
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
-            if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
-                val pkg = event.packageName ?: continue
-                // Skip Refocus itself and launchers — these are not distracting apps
-                if (ignoredPrefixes.none { pkg.startsWith(it) }) {
-                    lastForegroundApp = pkg
+            when (event.eventType) {
+                UsageEvents.Event.ACTIVITY_RESUMED -> {
+                    val pkg = event.packageName ?: continue
+                    currentPkg = pkg
+                }
+                UsageEvents.Event.SCREEN_NON_INTERACTIVE -> {
+                    currentPkg = null
                 }
             }
         }
-        return lastForegroundApp
+
+        if (currentPkg != null && ignoredPrefixes.any { currentPkg.startsWith(it) }) {
+            return null
+        }
+        return currentPkg
     }
 
     private fun isBatteryOptimizationIgnored(): Boolean {

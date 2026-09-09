@@ -152,9 +152,50 @@ class ProtectionNotifier extends ChangeNotifier {
 
   // ── App Management (FR-01) ────────────────────────────────────────────────
 
+  static const Map<String, List<String>> _knownAppAliases = {
+    'tiktok': [
+      'com.zhiliaoapp.musically',
+      'com.ss.android.ugc.trill',
+      'com.zhiliaoapp.musically.go',
+      'tiktok',
+    ],
+    'instagram': [
+      'com.instagram.android',
+      'instagram',
+    ],
+    'youtube': [
+      'com.google.android.youtube',
+      'youtube',
+    ],
+    'mobile legends': [
+      'com.mobile.legends',
+      'mobile legends',
+      'mobilelegends',
+    ],
+    'facebook': [
+      'com.facebook.katana',
+      'com.facebook.lite',
+      'facebook',
+    ],
+    'twitter': [
+      'com.twitter.android',
+      'twitter',
+      'x',
+    ],
+  };
+
   void toggleApp(String appOrPkg) {
-    if (_protectedApps.contains(appOrPkg)) {
+    if (isAppProtected(appOrPkg)) {
+      final lower = appOrPkg.toLowerCase().trim();
       _protectedApps.remove(appOrPkg);
+      _protectedApps.removeWhere((p) {
+        final pLower = p.toLowerCase().trim();
+        if (pLower == lower) return true;
+        for (final aliases in _knownAppAliases.values) {
+          if (aliases.contains(lower) && aliases.contains(pLower)) return true;
+        }
+        return false;
+      });
     } else {
       _protectedApps.add(appOrPkg);
     }
@@ -164,18 +205,20 @@ class ProtectionNotifier extends ChangeNotifier {
 
   bool isAppProtected(String appOrPkg) {
     if (_protectedApps.contains(appOrPkg)) return true;
-    final lower = appOrPkg.toLowerCase();
+    final lower = appOrPkg.toLowerCase().trim();
+    if (lower == 'com.example.refocus') return false;
+
     for (final p in _protectedApps) {
-      final pLower = p.toLowerCase();
-      // Exact match
+      final pLower = p.toLowerCase().trim();
       if (lower == pLower) return true;
-      // Only do fuzzy/substring match when neither side is a full package name
-      // (package names contain dots, e.g. com.zhiliaoapp.musically)
-      final queryIsPackage = lower.contains('.');
-      final storedIsPackage = pLower.contains('.');
-      if (!queryIsPackage && !storedIsPackage) {
-        if (lower.contains(pLower) || pLower.contains(lower)) return true;
+
+      for (final aliases in _knownAppAliases.values) {
+        final hasTarget = aliases.any((a) => lower == a || lower.contains(a));
+        final hasProtected = aliases.any((a) => pLower == a || pLower.contains(a));
+        if (hasTarget && hasProtected) return true;
       }
+
+      if (pLower.length >= 3 && lower.contains(pLower)) return true;
     }
     return false;
   }

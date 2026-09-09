@@ -18,7 +18,17 @@ void main() {
       expect(notifier.settings.triggerSeconds, 300);
       expect(notifier.settings.dailySessionLimit, 5);
       expect(notifier.snap.status, ProtectionStatus.idle);
+      // Display names
       expect(notifier.isAppProtected('TikTok'), isTrue);
+      expect(notifier.isAppProtected('YouTube'), isTrue);
+      // Package names
+      expect(notifier.isAppProtected('com.zhiliaoapp.musically'), isTrue);
+      expect(notifier.isAppProtected('com.ss.android.ugc.trill'), isTrue);
+      expect(notifier.isAppProtected('com.google.android.youtube'), isTrue);
+      expect(notifier.isAppProtected('com.instagram.android'), isTrue);
+      // Non-protected and system
+      expect(notifier.isAppProtected('com.example.refocus'), isFalse);
+      expect(notifier.isAppProtected('com.android.launcher'), isFalse);
       expect(notifier.isAppProtected('NonExistentApp'), isFalse);
     },
   );

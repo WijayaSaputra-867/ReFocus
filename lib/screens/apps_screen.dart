@@ -158,8 +158,8 @@ class _AppsScreenState extends State<AppsScreen> {
                       final item = items[index];
                       // Match either package name or display name in protected set
                       final isProtected =
-                          protectedApps.contains(item.key) ||
-                          protectedApps.contains(item.title);
+                          notifier.isAppProtected(item.key) ||
+                          notifier.isAppProtected(item.title);
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 8),
