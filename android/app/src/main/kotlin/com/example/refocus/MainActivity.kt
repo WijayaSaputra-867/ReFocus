@@ -151,7 +151,8 @@ class MainActivity : FlutterActivity() {
         runOnUiThread {
             if (activeOverlayView != null) return@runOnUiThread // Blocker already on screen
 
-            val wm = getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return@runOnUiThread
+            val appContext = applicationContext
+            val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return@runOnUiThread
             val layoutParams = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -167,14 +168,15 @@ class MainActivity : FlutterActivity() {
                 gravity = Gravity.CENTER
             }
 
-            val density = resources.displayMetrics.density
+            val density = appContext.resources.displayMetrics.density
             val pad = (24 * density).toInt()
 
-            val root = LinearLayout(this).apply {
+            val root = LinearLayout(appContext).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 setBackgroundColor(Color.parseColor("#E60E1116")) // Calm backdrop
                 setPadding(pad, pad, pad, pad)
+                setOnTouchListener { _, _ -> true } // Block touches through to underlying app
             }
 
             val cardBg = GradientDrawable().apply {
@@ -183,14 +185,14 @@ class MainActivity : FlutterActivity() {
                 setStroke((1.5 * density).toInt(), Color.parseColor("#21262D"))
             }
 
-            val card = LinearLayout(this).apply {
+            val card = LinearLayout(appContext).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 background = cardBg
                 setPadding((28 * density).toInt(), (32 * density).toInt(), (28 * density).toInt(), (32 * density).toInt())
             }
 
-            val titleView = TextView(this).apply {
+            val titleView = TextView(appContext).apply {
                 text = title
                 setTextColor(Color.parseColor("#F0F6FC"))
                 textSize = 20f
@@ -198,7 +200,7 @@ class MainActivity : FlutterActivity() {
                 setTypeface(null, Typeface.BOLD)
             }
 
-            val msgView = TextView(this).apply {
+            val msgView = TextView(appContext).apply {
                 text = message
                 setTextColor(Color.parseColor("#8B949E"))
                 textSize = 14f
@@ -206,7 +208,7 @@ class MainActivity : FlutterActivity() {
                 setPadding(0, (14 * density).toInt(), 0, (20 * density).toInt())
             }
 
-            val countView = TextView(this).apply {
+            val countView = TextView(appContext).apply {
                 text = "Menutup dalam $durationSeconds detik..."
                 setTextColor(Color.parseColor("#58A6FF"))
                 textSize = 15f
@@ -220,7 +222,7 @@ class MainActivity : FlutterActivity() {
                 cornerRadius = 12 * density
             }
 
-            val exitBtn = Button(this).apply {
+            val exitBtn = Button(appContext).apply {
                 text = "Keluar Sekarang"
                 setTextColor(Color.parseColor("#F0F6FC"))
                 background = btnBg
