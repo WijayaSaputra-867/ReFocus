@@ -89,18 +89,51 @@ class PlatformService {
     } catch (_) {}
   }
 
-  static Future<void> showOverlayBlocker({
+  static Future<bool> hasNotificationPermission() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('hasNotificationPermission');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> requestNotificationPermission() async {
+    try {
+      await _channel.invokeMethod<void>('requestNotificationPermission');
+    } catch (_) {}
+  }
+
+  static Future<bool> hasAccessibilityPermission() async {
+    try {
+      final res = await _channel.invokeMethod<bool>('hasAccessibilityPermission');
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> requestAccessibilityPermission() async {
+    try {
+      await _channel.invokeMethod<void>('requestAccessibilityPermission');
+    } catch (_) {}
+  }
+
+  static Future<bool> showOverlayBlocker({
     required String title,
     required String message,
     int seconds = 5,
   }) async {
     try {
-      await _channel.invokeMethod<void>('showOverlayBlocker', {
+      final res = await _channel.invokeMethod<bool>('showOverlayBlocker', {
         'title': title,
         'message': message,
         'seconds': seconds,
       });
-    } catch (_) {}
+      return res ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 
   static Future<void> kickToHomeScreen() async {
@@ -119,5 +152,14 @@ class PlatformService {
     try {
       await _channel.invokeMethod<void>('stopForegroundService');
     } catch (_) {}
+  }
+
+  static Future<Map<String, dynamic>?> getProtectionState() async {
+    try {
+      final res = await _channel.invokeMapMethod<String, dynamic>('getProtectionState');
+      return res;
+    } catch (_) {
+      return null;
+    }
   }
 }

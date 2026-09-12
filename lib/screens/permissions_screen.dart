@@ -17,6 +17,8 @@ class _PermissionsScreenState extends State<PermissionsScreen>
   bool _hasUsage = false;
   bool _hasBattery = false;
   bool _hasOverlay = false;
+  bool _hasNotification = false;
+  bool _hasAccessibility = false;
   bool _loading = true;
 
   @override
@@ -43,11 +45,15 @@ class _PermissionsScreenState extends State<PermissionsScreen>
     final usage = await PlatformService.hasUsagePermission();
     final battery = await PlatformService.hasBatteryOptimizationIgnored();
     final overlay = await PlatformService.hasOverlayPermission();
+    final notif = await PlatformService.hasNotificationPermission();
+    final accessibility = await PlatformService.hasAccessibilityPermission();
     if (mounted) {
       setState(() {
         _hasUsage = usage;
         _hasBattery = battery;
         _hasOverlay = overlay;
+        _hasNotification = notif;
+        _hasAccessibility = accessibility;
         _loading = false;
       });
     }
@@ -108,6 +114,34 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                   onFix: () async {
                     await PlatformService.requestOverlayPermission();
                   },
+                  onTest: () async {
+                    final shown = await PlatformService.showOverlayBlocker(
+                      title: 'Refocus Blocker Test',
+                      message: 'Overlay blocker aktif dan berfungsi normal!',
+                      seconds: 5,
+                    );
+                    if (!shown && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Gagal menampilkan blocker. Periksa izin overlay di pengaturan.',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                _PermissionCard(
+                  icon: Icons.notifications_outlined,
+                  title: 'Notifications',
+                  description:
+                      'Sends heads-up alert notifications when your social media session time is up '
+                      'and keeps background protection alive.',
+                  granted: _hasNotification,
+                  onFix: () async {
+                    await PlatformService.requestNotificationPermission();
+                  },
                 ),
                 const SizedBox(height: 12),
                 _PermissionCard(
@@ -120,6 +154,17 @@ class _PermissionsScreenState extends State<PermissionsScreen>
                   granted: _hasBattery,
                   onFix: () async {
                     await PlatformService.requestIgnoreBatteryOptimization();
+                  },
+                ),
+                const SizedBox(height: 12),
+                _PermissionCard(
+                  icon: Icons.accessibility_new_outlined,
+                  title: 'Accessibility Service (Instant Detection)',
+                  description:
+                      'Provides instant 0-second detection when opening distraction apps and enforces blocking immediately without OS delays.',
+                  granted: _hasAccessibility,
+                  onFix: () async {
+                    await PlatformService.requestAccessibilityPermission();
                   },
                 ),
                 const SizedBox(height: 32),
@@ -167,6 +212,7 @@ class _PermissionCard extends StatelessWidget {
     required this.description,
     required this.granted,
     required this.onFix,
+    this.onTest,
   });
 
   final IconData icon;
@@ -174,6 +220,7 @@ class _PermissionCard extends StatelessWidget {
   final String description;
   final bool granted;
   final VoidCallback onFix;
+  final VoidCallback? onTest;
 
   @override
   Widget build(BuildContext context) {
@@ -230,6 +277,24 @@ class _PermissionCard extends StatelessWidget {
                 ),
                 onPressed: onFix,
                 child: const Text('Open Settings'),
+              ),
+            ),
+          ] else if (onTest != null) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accentIdle,
+                  side: BorderSide(color: AppColors.accentIdle.withAlpha(80)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                icon: const Icon(Icons.visibility_outlined, size: 16),
+                onPressed: onTest,
+                label: const Text('Test Blocker'),
               ),
             ),
           ],

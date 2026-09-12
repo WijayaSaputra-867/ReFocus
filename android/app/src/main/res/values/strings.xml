@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">Mendeteksi aplikasi distraksi secara instan dan mengaktifkan proteksi jeda istirahat (cooldown) tanpa delay.</string>
+</resources>

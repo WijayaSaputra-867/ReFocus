@@ -20,6 +20,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   static const _steps = [
     _OnboardingStep(
       icon: Icons.filter_center_focus_rounded,
+      showLogo: true,
       badge: 'CONCEPT',
       title: 'Take back your attention.',
       subtitle:
@@ -40,21 +41,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       badge: 'TRANSPARENT PERMISSIONS',
       title: 'Permissions explained plainly.',
       subtitle:
-          'To detect when a protected app is active and pause when you leave, Android requires Usage Access.',
+          'Tap "Grant Permissions" to set up Usage Access, Overlay, and Battery Optimization — all required for Refocus to work properly.',
       highlight:
           'Reads: foreground package name only.\nNever reads: messages, passwords, or screen contents.',
       showPermissionButton: true,
     ),
   ];
 
-  void _next() {
+  Future<void> _next() async {
     if (_currentPage < _steps.length - 1) {
       _controller.nextPage(
         duration: const Duration(milliseconds: 280),
         curve: Curves.easeInOut,
       );
     } else {
-      context.read<ProtectionNotifier>().completeOnboarding();
+      // Request all missing permissions sequentially before finishing onboarding
+      if (!await PlatformService.hasUsagePermission()) {
+        await PlatformService.requestUsagePermission();
+      }
+      if (!await PlatformService.hasOverlayPermission()) {
+        await PlatformService.requestOverlayPermission();
+      }
+      if (!await PlatformService.hasBatteryOptimizationIgnored()) {
+        await PlatformService.requestIgnoreBatteryOptimization();
+      }
+      if (mounted) context.read<ProtectionNotifier>().completeOnboarding();
     }
   }
 
@@ -109,21 +120,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: AppColors.accentIdle.withAlpha(50),
-                            ),
-                          ),
-                          child: Icon(
-                            step.icon,
-                            size: 32,
-                            color: AppColors.accentIdle,
-                          ),
-                        ),
+                        step.showLogo
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Image.asset(
+                                  'assets/branding/refocus-app-icon.png',
+                                  width: 64,
+                                  height: 64,
+                                ),
+                              )
+                            : Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: AppColors.accentIdle.withAlpha(50),
+                                  ),
+                                ),
+                                child: Icon(
+                                  step.icon,
+                                  size: 32,
+                                  color: AppColors.accentIdle,
+                                ),
+                              ),
                         const SizedBox(height: 24),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -198,8 +218,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               ),
                             ),
                             icon: const Icon(Icons.security, size: 18),
-                            label: const Text('Grant Usage Access in Settings'),
-                            onPressed: PlatformService.requestUsagePermission,
+                            label: const Text('Grant Permissions'),
+                            onPressed: _next,
                           ),
                         ],
                       ],
@@ -269,6 +289,7 @@ class _OnboardingStep {
     required this.title,
     required this.subtitle,
     required this.highlight,
+    this.showLogo = false,
     this.showPermissionButton = false,
   });
 
@@ -277,5 +298,6 @@ class _OnboardingStep {
   final String title;
   final String subtitle;
   final String highlight;
+  final bool showLogo;
   final bool showPermissionButton;
 }

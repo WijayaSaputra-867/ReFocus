@@ -5,6 +5,7 @@ import '../domain/focus_notifier.dart';
 import '../domain/protection_notifier.dart';
 import '../domain/protection_state.dart';
 import '../screens/focus_screen.dart';
+import '../services/platform_service.dart';
 import '../theme.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -25,22 +26,113 @@ class HomeScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // ── Header ─────────────────────────────────────────────────────
-              Text(
-                'Refocus',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -0.5,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      'assets/branding/refocus-app-icon.png',
+                      width: 36,
+                      height: 36,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Refocus',
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      Text(
+                        'Take back your attention.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+
+              // ── Permission warning banner (if permissions missing) ─────────
+              FutureBuilder<bool>(
+                future: PlatformService.hasUsagePermission().then(
+                  (u) async => u && await PlatformService.hasOverlayPermission(),
                 ),
+                builder: (context, permSnap) {
+                  if (permSnap.connectionState == ConnectionState.done &&
+                      permSnap.data == false) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.shield_outlined,
+                            color: AppColors.accentCooldown,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Izin Diperlukan',
+                                  style: TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Akses Penggunaan & Tampilkan di Atas Aplikasi Lain dibutuhkan agar blocker aktif.',
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 11,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              if (!await PlatformService.hasUsagePermission()) {
+                                await PlatformService.requestUsagePermission();
+                              } else if (!await PlatformService.hasOverlayPermission()) {
+                                await PlatformService.requestOverlayPermission();
+                              }
+                            },
+                            child: Text(
+                              'Beri Izin',
+                              style: TextStyle(
+                                color: AppColors.accentCooldown,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Take back your attention.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 40),
 
               // ── Status card ────────────────────────────────────────────────
               _StatusCard(snap: snap, settings: settings),
@@ -95,6 +187,20 @@ class HomeScreen extends StatelessWidget {
                         'Cycle (${snap.status.name})',
                         style: TextStyle(
                           color: AppColors.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => PlatformService.showOverlayBlocker(
+                        title: 'Refocus Blocker Test',
+                        message: 'Ini adalah preview blocker saat batas waktu aplikasi tercapai.',
+                        seconds: 5,
+                      ),
+                      child: Text(
+                        'Test Blocker',
+                        style: TextStyle(
+                          color: AppColors.accentDistracting,
                           fontSize: 11,
                         ),
                       ),
@@ -217,11 +323,21 @@ class _StatusCard extends StatelessWidget {
   ) {
     switch (s.status) {
       case ProtectionStatus.idle:
+        if (s.elapsedSeconds > 0) {
+          final mm = (s.elapsedSeconds ~/ 60).toString().padLeft(2, '0');
+          final ss = (s.elapsedSeconds % 60).toString().padLeft(2, '0');
+          return (
+            Icons.pause_circle_outline,
+            'SESI DIJEDA',
+            '$mm:$ss',
+            AppColors.accentDistracting,
+          );
+        }
         return (
           Icons.shield_outlined,
-          'PROTECTION ON',
-          'All clear',
-          AppColors.accentIdle,
+          s.protectionEnabled ? 'PROTECTION ON' : 'PROTECTION OFF',
+          s.protectionEnabled ? 'All clear' : 'Tap below to enable protection',
+          s.protectionEnabled ? AppColors.accentIdle : AppColors.textSecondary,
         );
       case ProtectionStatus.distracting:
         final mm = (s.elapsedSeconds ~/ 60).toString().padLeft(2, '0');
@@ -257,6 +373,12 @@ class _StatusCard extends StatelessWidget {
   String? _subMessage(ProtectionSnapshot s, ProtectionSettings cfg) {
     switch (s.status) {
       case ProtectionStatus.idle:
+        if (s.elapsedSeconds > 0) {
+          final rem = (cfg.triggerSeconds - s.elapsedSeconds).clamp(0, cfg.triggerSeconds);
+          final mm = rem ~/ 60;
+          final ss = rem % 60;
+          return 'Sesi dijeda • Sisa jatah: ${(mm).toString().padLeft(2, '0')}:${(ss).toString().padLeft(2, '0')}';
+        }
         return null;
       case ProtectionStatus.distracting:
         final remaining = cfg.triggerSeconds - s.elapsedSeconds;
@@ -289,6 +411,7 @@ class _SessionRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border, width: 1),
       ),
       child: Row(
         children: [

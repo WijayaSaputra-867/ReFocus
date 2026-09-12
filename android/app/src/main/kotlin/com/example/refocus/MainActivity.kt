@@ -7,9 +7,11 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.text.TextUtils
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
@@ -21,6 +23,8 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
+import android.util.Log
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -76,8 +80,8 @@ class MainActivity : FlutterActivity() {
                     val title = call.argument<String>("title") ?: "Waktunya Istirahat"
                     val message = call.argument<String>("message") ?: "Aplikasi ini diblokir sementara."
                     val seconds = call.argument<Int>("seconds") ?: 5
-                    showOverlayBlocker(title, message, seconds)
-                    result.success(true)
+                    val shown = showOverlayBlocker(title, message, seconds)
+                    result.success(shown)
                 }
                 "kickToHomeScreen" -> {
                     kickToHomeScreen()
@@ -94,8 +98,62 @@ class MainActivity : FlutterActivity() {
                     requestIgnoreBatteryOptimization()
                     result.success(true)
                 }
+                "getProtectionState" -> {
+                    val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                    val status = prefs.getString("flutter.protection_status", "idle") ?: "idle"
+                    val elapsed = getSafeInt(prefs, "flutter.elapsed_seconds", 0)
+                    val cooldownRemaining = getSafeInt(prefs, "flutter.cooldown_remaining", 0)
+                    val sessions = getSafeInt(prefs, "flutter.sessions_today", 0)
+                    val totalDistraction = getSafeInt(prefs, "flutter.total_distraction_seconds", 0)
+                    val resisted = getSafeInt(prefs, "flutter.resisted_today", 0)
+                    result.success(mapOf(
+                        "status" to status,
+                        "elapsedSeconds" to elapsed,
+                        "cooldownRemaining" to cooldownRemaining,
+                        "sessionsToday" to sessions,
+                        "totalDistractionSeconds" to totalDistraction,
+                        "resistedToday" to resisted
+                    ))
+                }
+                "hasNotificationPermission" -> {
+                    result.success(hasNotificationPermission())
+                }
+                "requestNotificationPermission" -> {
+                    requestNotificationPermission()
+                    result.success(true)
+                }
+                "hasAccessibilityPermission" -> {
+                    result.success(hasAccessibilityPermission())
+                }
+                "requestAccessibilityPermission" -> {
+                    requestAccessibilityPermission()
+                    result.success(true)
+                }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+    }
+
+    private fun hasNotificationPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
         }
     }
 
@@ -143,6 +201,31 @@ class MainActivity : FlutterActivity() {
             }
             startActivity(intent)
         }
+    }
+
+    private fun hasAccessibilityPermission(): Boolean {
+        val expectedComponentName = ComponentName(this, RefocusAccessibilityService::class.java)
+        val enabledServicesSetting = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        val colonSplitter = TextUtils.SimpleStringSplitter(':')
+        colonSplitter.setString(enabledServicesSetting)
+        while (colonSplitter.hasNext()) {
+            val componentNameString = colonSplitter.next()
+            val enabledComponent = ComponentName.unflattenFromString(componentNameString)
+            if (enabledComponent != null && enabledComponent == expectedComponentName) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun requestAccessibilityPermission() {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        startActivity(intent)
     }
 
     private fun sendBlockerNotification(title: String, message: String) {
@@ -195,20 +278,32 @@ class MainActivity : FlutterActivity() {
         nm.notify(2002, notif)
     }
 
-    private fun showOverlayBlocker(title: String, message: String, durationSeconds: Int) {
+    private fun showOverlayBlocker(title: String, message: String, durationSeconds: Int): Boolean {
         sendBlockerNotification(title, message)
 
         if (!hasOverlayPermission()) {
-            // Fallback if overlay permission is missing: immediately kick to home screen
+            Log.w("Refocus", "Cannot show overlay: SYSTEM_ALERT_WINDOW permission missing, kicking to home")
             kickToHomeScreen()
-            return
+            return false
         }
 
         runOnUiThread {
-            if (activeOverlayView != null) return@runOnUiThread // Blocker already on screen
+            val wm = (getSystemService(Context.WINDOW_SERVICE)
+                ?: applicationContext.getSystemService(Context.WINDOW_SERVICE)) as? WindowManager
+            if (wm == null) {
+                Log.e("Refocus", "WindowManager is null, fallback to home screen")
+                kickToHomeScreen()
+                return@runOnUiThread
+            }
 
-            val appContext = applicationContext
-            val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return@runOnUiThread
+            if (activeOverlayView != null) {
+                dismissOverlay(wm)
+            }
+
+            val themedContext = ContextThemeWrapper(this, android.R.style.Theme_DeviceDefault_NoActionBar)
+            val density = resources.displayMetrics.density
+            val pad = (24 * density).toInt()
+
             val layoutParams = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -218,21 +313,19 @@ class MainActivity : FlutterActivity() {
                     @Suppress("DEPRECATION")
                     WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.CENTER
             }
 
-            val density = appContext.resources.displayMetrics.density
-            val pad = (24 * density).toInt()
-
-            val root = LinearLayout(appContext).apply {
+            val root = LinearLayout(themedContext).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setBackgroundColor(Color.parseColor("#E60E1116")) // Calm backdrop
+                setBackgroundColor(Color.parseColor("#E60E1116"))
                 setPadding(pad, pad, pad, pad)
-                setOnTouchListener { _, _ -> true } // Block touches through to underlying app
+                setOnTouchListener { _, _ -> true }
             }
 
             val cardBg = GradientDrawable().apply {
@@ -241,14 +334,14 @@ class MainActivity : FlutterActivity() {
                 setStroke((1.5 * density).toInt(), Color.parseColor("#21262D"))
             }
 
-            val card = LinearLayout(appContext).apply {
+            val card = LinearLayout(themedContext).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 background = cardBg
                 setPadding((28 * density).toInt(), (32 * density).toInt(), (28 * density).toInt(), (32 * density).toInt())
             }
 
-            val titleView = TextView(appContext).apply {
+            val titleView = TextView(themedContext).apply {
                 text = title
                 setTextColor(Color.parseColor("#F0F6FC"))
                 textSize = 20f
@@ -256,7 +349,7 @@ class MainActivity : FlutterActivity() {
                 setTypeface(null, Typeface.BOLD)
             }
 
-            val msgView = TextView(appContext).apply {
+            val msgView = TextView(themedContext).apply {
                 text = message
                 setTextColor(Color.parseColor("#8B949E"))
                 textSize = 14f
@@ -264,7 +357,7 @@ class MainActivity : FlutterActivity() {
                 setPadding(0, (14 * density).toInt(), 0, (20 * density).toInt())
             }
 
-            val countView = TextView(appContext).apply {
+            val countView = TextView(themedContext).apply {
                 text = "Menutup dalam $durationSeconds detik..."
                 setTextColor(Color.parseColor("#58A6FF"))
                 textSize = 15f
@@ -278,7 +371,7 @@ class MainActivity : FlutterActivity() {
                 cornerRadius = 12 * density
             }
 
-            val exitBtn = Button(appContext).apply {
+            val exitBtn = Button(themedContext).apply {
                 text = "Keluar Sekarang"
                 setTextColor(Color.parseColor("#F0F6FC"))
                 background = btnBg
@@ -315,16 +408,23 @@ class MainActivity : FlutterActivity() {
                 }
                 overlayHandler?.postDelayed(overlayRunnable!!, 1000)
             } catch (e: Exception) {
+                Log.e("Refocus", "Failed to add overlay view: ${e.message}", e)
+                dismissOverlay(wm)
                 kickToHomeScreen()
             }
         }
+        return true
     }
 
     private fun dismissOverlay(wm: WindowManager) {
         activeOverlayView?.let {
             try {
-                wm.removeView(it)
-            } catch (_: Exception) {}
+                if (it.isAttachedToWindow) {
+                    wm.removeView(it)
+                }
+            } catch (e: Exception) {
+                Log.w("Refocus", "Failed to remove overlay view: ${e.message}")
+            }
             activeOverlayView = null
         }
         overlayRunnable?.let { overlayHandler?.removeCallbacks(it) }
@@ -362,13 +462,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun getForegroundApp(): String? {
-        val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return null
-        val time = System.currentTimeMillis()
-        // Query 60-minute window so active app remains tracked even if user stays in it without switching
-        val events = usm.queryEvents(time - 3600000L, time)
-        val event = UsageEvents.Event()
-        var currentPkg: String? = null
-
+        val accessPkg = RefocusAccessibilityService.currentForegroundPackage
         val ignoredPrefixes = listOf(
             packageName,                          // com.example.refocus
             "com.android.launcher",
@@ -379,8 +473,20 @@ class MainActivity : FlutterActivity() {
             "com.oneplus.launcher",
             "com.coloros.launcher",
             "com.oppo.launcher",
-            "com.vivo.launcher"
+            "com.vivo.launcher",
+            "com.android.systemui"
         )
+
+        if (accessPkg != null) {
+            if (ignoredPrefixes.any { accessPkg.startsWith(it) }) return null
+            return accessPkg
+        }
+
+        val usm = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return null
+        val time = System.currentTimeMillis()
+        val events = usm.queryEvents(time - 30000L, time)
+        val event = UsageEvents.Event()
+        var currentPkg: String? = null
 
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
@@ -393,6 +499,13 @@ class MainActivity : FlutterActivity() {
                     currentPkg = null
                 }
             }
+        }
+
+        if (currentPkg == null) {
+            try {
+                val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 60000L, time)
+                currentPkg = stats?.maxByOrNull { it.lastTimeUsed }?.packageName
+            } catch (_: Exception) {}
         }
 
         if (currentPkg != null && ignoredPrefixes.any { currentPkg.startsWith(it) }) {
@@ -413,6 +526,18 @@ class MainActivity : FlutterActivity() {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             startActivity(intent)
+        }
+    }
+
+    private fun getSafeInt(prefs: android.content.SharedPreferences, key: String, defValue: Int = 0): Int {
+        return try {
+            prefs.getInt(key, defValue)
+        } catch (_: Exception) {
+            try {
+                prefs.getLong(key, defValue.toLong()).toInt()
+            } catch (_: Exception) {
+                defValue
+            }
         }
     }
 }

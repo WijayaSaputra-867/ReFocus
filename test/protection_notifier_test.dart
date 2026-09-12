@@ -61,6 +61,8 @@ void main() {
 
   test('app foreground and background state transitions', () async {
     final notifier = await ProtectionNotifier.create();
+    notifier.toggleProtection(); // Turn protection ON for test
+    expect(notifier.snap.protectionEnabled, isTrue);
 
     // Foreground non-protected app: remains idle
     notifier.onAppForegrounded('Calculator');
@@ -73,5 +75,25 @@ void main() {
     // Leave protected app: pauses and returns to idle
     notifier.onAppBackgrounded();
     expect(notifier.snap.status, ProtectionStatus.idle);
+  });
+
+  test('protected app is blocked during cooldown and cannot enter distracting', () async {
+    final notifier = await ProtectionNotifier.create();
+    notifier.toggleProtection();
+
+    // Force snapshot to cooldown
+    notifier.applySnapshot(
+      notifier.snap.copyWith(
+        status: ProtectionStatus.cooldown,
+        cooldownRemainingSeconds: 300,
+      ),
+    );
+    expect(notifier.snap.status, ProtectionStatus.cooldown);
+
+    // Attempting to foreground a protected app while in cooldown
+    notifier.onAppForegrounded('TikTok');
+
+    // Must still remain in cooldown, not transitioning to distracting
+    expect(notifier.snap.status, ProtectionStatus.cooldown);
   });
 }

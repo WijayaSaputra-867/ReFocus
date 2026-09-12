@@ -13,24 +13,59 @@ import 'services/advanced_features_service.dart';
 import 'services/translation_service.dart';
 import 'theme.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  final protection = await ProtectionNotifier.create();
-  final focus = await FocusNotifier.create();
-  final translation = await TranslationService.create();
-  final advanced = await AdvancedFeaturesService.create();
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider.value(value: protection),
-        ChangeNotifierProvider.value(value: focus),
-        ChangeNotifierProvider.value(value: translation),
-        ChangeNotifierProvider.value(value: advanced),
-      ],
-      child: const RefocusApp(),
-    ),
-  );
+  runApp(const _Bootstrap());
+}
+
+class _Bootstrap extends StatefulWidget {
+  const _Bootstrap();
+
+  @override
+  State<_Bootstrap> createState() => _BootstrapState();
+}
+
+class _BootstrapState extends State<_Bootstrap> {
+  late final Future<List<dynamic>> _init;
+
+  @override
+  void initState() {
+    super.initState();
+    _init = Future.wait([
+      ProtectionNotifier.create(),
+      FocusNotifier.create(),
+      TranslationService.create(),
+      AdvancedFeaturesService.create(),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<dynamic>>(
+      future: _init,
+      builder: (context, snap) {
+        if (!snap.hasData) {
+          // Instant dark frame — no black screen gap
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: buildTheme(),
+            home: const Scaffold(backgroundColor: AppColors.background),
+          );
+        }
+        final r = snap.data!;
+        return MultiProvider(
+          providers: [
+            ChangeNotifierProvider.value(value: r[0] as ProtectionNotifier),
+            ChangeNotifierProvider.value(value: r[1] as FocusNotifier),
+            ChangeNotifierProvider.value(value: r[2] as TranslationService),
+            ChangeNotifierProvider.value(value: r[3] as AdvancedFeaturesService),
+          ],
+          child: const RefocusApp(),
+        );
+      },
+    );
+  }
 }
 
 class RefocusApp extends StatelessWidget {
@@ -58,8 +93,27 @@ class _Shell extends StatefulWidget {
   State<_Shell> createState() => _ShellState();
 }
 
-class _ShellState extends State<_Shell> {
+class _ShellState extends State<_Shell> with WidgetsBindingObserver {
   int _idx = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<ProtectionNotifier>().reloadFromStorage();
+    }
+  }
 
   static const _screens = [
     HomeScreen(),

@@ -11,6 +11,9 @@ abstract final class AppColors {
   static const textPrimary = Color(0xFFEEF0F6);
   static const textSecondary = Color(0xFF7A7F94);
 
+  // Border / divider (DESIGN.md §4)
+  static const border = Color(0xFF2A2E3A);
+
   // State accents — calm, not alarming (PRD §10 UX Principles)
   static const accentIdle = Color(0xFF6EE7B7); // soft teal-green
   static const accentDistracting = Color(0xFFFBBF24); // amber
