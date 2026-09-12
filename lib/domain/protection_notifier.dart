@@ -280,6 +280,7 @@ class ProtectionNotifier extends ChangeNotifier {
   }
 
   String _currentForegroundApp = '';
+  DateTime? _lastProtectedAppSeenAt;
   DateTime? _lastBlockerShownAt;
 
   String _displayNameFor(String appOrPkg) {
@@ -429,6 +430,57 @@ class ProtectionNotifier extends ChangeNotifier {
       await reloadFromStorage();
 
       final foregroundApp = await PlatformService.getForegroundApp();
+      final isTransientForeground =
+          foregroundApp == null ||
+          foregroundApp.isEmpty ||
+          foregroundApp.startsWith('com.android.launcher') ||
+          foregroundApp.startsWith('com.google.android.apps.nexuslauncher') ||
+          foregroundApp.startsWith('com.miui.home') ||
+          foregroundApp.startsWith('com.sec.android.app.launcher') ||
+          foregroundApp.startsWith('com.huawei.android.launcher') ||
+          foregroundApp.startsWith('com.oppo.launcher') ||
+          foregroundApp.startsWith('com.coloros.launcher') ||
+          foregroundApp.startsWith('com.vivo.launcher') ||
+          foregroundApp.startsWith('com.android.systemui');
+
+      if (_snap.status == ProtectionStatus.distracting &&
+          _currentForegroundApp.isNotEmpty &&
+          isAppProtected(_currentForegroundApp) &&
+          _lastProtectedAppSeenAt != null) {
+        final ageSeconds = DateTime.now()
+            .difference(_lastProtectedAppSeenAt!)
+            .inSeconds;
+        final stillRecent = ageSeconds < 5;
+        final staleNonProtectedRead =
+            foregroundApp != null &&
+            foregroundApp.isNotEmpty &&
+            !isTransientForeground &&
+            !isAppProtected(foregroundApp) &&
+            stillRecent;
+
+        if (staleNonProtectedRead) {
+          return;
+        }
+      }
+
+      if (_snap.status == ProtectionStatus.dailyLocked ||
+          _snap.status == ProtectionStatus.cooldown) {
+        if (_currentForegroundApp.isNotEmpty) {
+          _triggerOverlayBlocker(
+            _currentForegroundApp,
+            isDailyLock: _snap.status == ProtectionStatus.dailyLocked,
+          );
+        }
+        if (foregroundApp != null &&
+            foregroundApp.isNotEmpty &&
+            isAppProtected(foregroundApp)) {
+          return;
+        }
+        if (isTransientForeground) return;
+      }
+
+      if (isTransientForeground) return;
+
       if (foregroundApp == null || foregroundApp.isEmpty) return;
 
       if (isAppProtected(foregroundApp)) {
@@ -451,6 +503,22 @@ class ProtectionNotifier extends ChangeNotifier {
 
   void onAppForegrounded(String appName) {
     if (!_snap.protectionEnabled) return;
+
+    if (_snap.status == ProtectionStatus.distracting) {
+      final now = DateTime.now();
+      final hasRecentProtectedActivity =
+          _lastProtectedAppSeenAt != null &&
+          now.difference(_lastProtectedAppSeenAt!).inSeconds < 3;
+      final protectedAppStillActive =
+          _currentForegroundApp.isNotEmpty &&
+          isAppProtected(_currentForegroundApp);
+
+      if (!isAppProtected(appName) &&
+          (hasRecentProtectedActivity || protectedAppStillActive)) {
+        return;
+      }
+    }
+
     if (_snap.status == ProtectionStatus.dailyLocked ||
         _snap.sessionsToday >= _settings.dailySessionLimit ||
         _snap.status == ProtectionStatus.cooldown) {
@@ -466,6 +534,7 @@ class ProtectionNotifier extends ChangeNotifier {
 
     if (isAppProtected(appName)) {
       _currentForegroundApp = appName;
+      _lastProtectedAppSeenAt = DateTime.now();
       final storedElapsed = _prefs.getInt(_kElapsed) ?? 0;
       final currentElapsed = storedElapsed > _snap.elapsedSeconds
           ? storedElapsed
@@ -484,12 +553,21 @@ class ProtectionNotifier extends ChangeNotifier {
 
   void onAppBackgrounded() {
     if (_snap.status == ProtectionStatus.distracting) {
-      // Refocus itself can be swiped away while the user is still inside a protected app.
-      // In that case, we must not treat the protected app as "left" just because the app
-      // went to the background. Keep the distraction timer alive until we know the app is no
-      // longer protected or the user actually left that app.
+      final now = DateTime.now();
+      final hasRecentProtectedActivity =
+          _lastProtectedAppSeenAt != null &&
+          now.difference(_lastProtectedAppSeenAt!).inSeconds < 3;
+
       if (_currentForegroundApp.isNotEmpty &&
-          isAppProtected(_currentForegroundApp)) {
+          isAppProtected(_currentForegroundApp) &&
+          hasRecentProtectedActivity) {
+        return;
+      }
+
+      if (_currentForegroundApp.isNotEmpty &&
+          isAppProtected(_currentForegroundApp) &&
+          _lastProtectedAppSeenAt != null &&
+          now.difference(_lastProtectedAppSeenAt!).inSeconds < 5) {
         return;
       }
 

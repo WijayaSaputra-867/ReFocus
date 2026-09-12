@@ -493,6 +493,17 @@ class RefocusForegroundService : Service() {
                     if (isMax) "Batas harian tercapai ($nextSessions/$limit)"
                     else "Proteksi aktif di latar belakang (Sesi $nextSessions/$limit selesai)"
                 )
+                if (isMax) {
+                    sendCooldownFinishedNotification(
+                        "Batas Harian Tercapai",
+                        "Jatah sesi fokus hari ini ($limit sesi) telah habis. Kembali lagi besok."
+                    )
+                } else {
+                    sendCooldownFinishedNotification(
+                        "Waktu Istirahat Selesai",
+                        "Jeda istirahat selesai. Sesi $nextSessions dari $limit selesai digunakan."
+                    )
+                }
             } else {
                 prefs.edit().putInt(K_COOLDOWN_REMAINING, currentCooldown).apply()
                 updateForegroundNotification("Refocus • Jeda Istirahat", "Cooldown tersisa: ${formatSeconds(currentCooldown)}")
@@ -573,6 +584,9 @@ class RefocusForegroundService : Service() {
             if (status == "distracting") {
                 val activePkg = currentActivePackage
                 val stillProtected = activePkg != null && isProtectedApp(activePkg)
+                if (activePkg == null || activePkg.isBlank()) {
+                    return
+                }
                 if (!stillProtected) {
                     prefs.edit()
                         .putString(K_STATUS, "idle")
@@ -896,6 +910,43 @@ class RefocusForegroundService : Service() {
             .build()
 
         nm.notify(2002, notif)
+    }
+
+    private fun sendCooldownFinishedNotification(title: String, message: String) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager ?: return
+        val chId = "refocus_info_channel"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(chId, "Refocus Notifikasi Selesai", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "Notifikasi saat waktu jeda/cooldown telah selesai"
+                enableVibration(true)
+                setShowBadge(true)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            }
+            nm.createNotificationChannel(channel)
+        }
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            ?: Intent(this, MainActivity::class.java)
+        launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val pi = PendingIntent.getActivity(
+            this, 1004, launchIntent,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            else PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            Notification.Builder(this, chId)
+        else @Suppress("DEPRECATION") Notification.Builder(this)
+
+        val notif = builder
+            .setContentTitle(title)
+            .setContentText(message)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+            .setPriority(Notification.PRIORITY_DEFAULT)
+            .setDefaults(Notification.DEFAULT_ALL)
+            .build()
+
+        nm.notify(2003, notif)
     }
 
     // ── Foreground notification ───────────────────────────────────────────────

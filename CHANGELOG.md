@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-09-12
+
+### Added
+- Cooldown completion notifications alerting users when their break ends or daily quota is reached.
+
+### Fixed
+- Fixed dark screen artifact upon recent-app swipe by stabilizing Android startup window background.
+- Fixed false-pause distraction tracking when Refocus or transient system UI / launcher events are triggered while inside protected apps.
+- Enforced cooldown blocker overlay resilience when app is swiped from recents.
+- Standardized app display label to **Refocus**.
+
 ## [1.0.0] - 2026-09-09
 
 ### Added
