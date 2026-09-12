@@ -82,36 +82,42 @@ void main() {
     expect(notifier.snap.status, ProtectionStatus.idle);
   });
 
-  test('protected app is blocked during cooldown and cannot enter distracting', () async {
-    final notifier = await ProtectionNotifier.create();
-    notifier.toggleProtection();
+  test(
+    'protected app is blocked during cooldown and cannot enter distracting',
+    () async {
+      final notifier = await ProtectionNotifier.create();
+      notifier.toggleProtection();
 
-    // Force snapshot to cooldown
-    notifier.applySnapshot(
-      notifier.snap.copyWith(
-        status: ProtectionStatus.cooldown,
-        cooldownRemainingSeconds: 300,
-      ),
-    );
-    expect(notifier.snap.status, ProtectionStatus.cooldown);
+      // Force snapshot to cooldown
+      notifier.applySnapshot(
+        notifier.snap.copyWith(
+          status: ProtectionStatus.cooldown,
+          cooldownRemainingSeconds: 300,
+        ),
+      );
+      expect(notifier.snap.status, ProtectionStatus.cooldown);
 
-    // Attempting to foreground a protected app while in cooldown
-    notifier.onAppForegrounded('TikTok');
+      // Attempting to foreground a protected app while in cooldown
+      notifier.onAppForegrounded('TikTok');
 
-    // Must still remain in cooldown, not transitioning to distracting
-    expect(notifier.snap.status, ProtectionStatus.cooldown);
-  });
+      // Must still remain in cooldown, not transitioning to distracting
+      expect(notifier.snap.status, ProtectionStatus.cooldown);
+    },
+  );
 
-  test('swiping app away should not pause distraction tracking while protected app remains active', () async {
-    final notifier = await ProtectionNotifier.create();
-    notifier.toggleProtection();
+  test(
+    'swiping app away should not pause distraction tracking while protected app remains active',
+    () async {
+      final notifier = await ProtectionNotifier.create();
+      notifier.toggleProtection();
 
-    notifier.onAppForegrounded('TikTok');
-    expect(notifier.snap.status, ProtectionStatus.distracting);
+      notifier.onAppForegrounded('TikTok');
+      expect(notifier.snap.status, ProtectionStatus.distracting);
 
-    // Simulate the app being swiped away from recents while a protected app was still active.
-    // The app itself should not be mistaken for leaving the protected app.
-    notifier.onAppBackgrounded();
-    expect(notifier.snap.status, ProtectionStatus.distracting);
-  });
+      // Simulate the app being swiped away from recents while a protected app was still active.
+      // The app itself should not be mistaken for leaving the protected app.
+      notifier.onAppBackgrounded();
+      expect(notifier.snap.status, ProtectionStatus.distracting);
+    },
+  );
 }

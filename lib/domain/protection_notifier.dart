@@ -149,10 +149,13 @@ class ProtectionNotifier extends ChangeNotifier {
       _prefs.setInt(_kElapsed, _snap.elapsedSeconds);
     }
     _prefs.setInt(_kCooldownRemaining, _snap.cooldownRemainingSeconds);
-    if (_snap.status == ProtectionStatus.cooldown && _snap.cooldownRemainingSeconds > 0) {
+    if (_snap.status == ProtectionStatus.cooldown &&
+        _snap.cooldownRemainingSeconds > 0) {
       final existingUntil = _prefs.getInt('cooldown_until_epoch_ms') ?? 0;
       if (existingUntil <= DateTime.now().millisecondsSinceEpoch) {
-        final until = DateTime.now().millisecondsSinceEpoch + (_snap.cooldownRemainingSeconds * 1000);
+        final until =
+            DateTime.now().millisecondsSinceEpoch +
+            (_snap.cooldownRemainingSeconds * 1000);
         _prefs.setInt('cooldown_until_epoch_ms', until);
       }
     } else if (_snap.status != ProtectionStatus.cooldown) {
@@ -186,29 +189,11 @@ class ProtectionNotifier extends ChangeNotifier {
       'com.zhiliaoapp.musically.go',
       'tiktok',
     ],
-    'instagram': [
-      'com.instagram.android',
-      'instagram',
-    ],
-    'youtube': [
-      'com.google.android.youtube',
-      'youtube',
-    ],
-    'mobile legends': [
-      'com.mobile.legends',
-      'mobile legends',
-      'mobilelegends',
-    ],
-    'facebook': [
-      'com.facebook.katana',
-      'com.facebook.lite',
-      'facebook',
-    ],
-    'twitter': [
-      'com.twitter.android',
-      'twitter',
-      'x',
-    ],
+    'instagram': ['com.instagram.android', 'instagram'],
+    'youtube': ['com.google.android.youtube', 'youtube'],
+    'mobile legends': ['com.mobile.legends', 'mobile legends', 'mobilelegends'],
+    'facebook': ['com.facebook.katana', 'com.facebook.lite', 'facebook'],
+    'twitter': ['com.twitter.android', 'twitter', 'x'],
   };
 
   void toggleApp(String appOrPkg) {
@@ -241,7 +226,9 @@ class ProtectionNotifier extends ChangeNotifier {
 
       for (final aliases in _knownAppAliases.values) {
         final hasTarget = aliases.any((a) => lower == a || lower.contains(a));
-        final hasProtected = aliases.any((a) => pLower == a || pLower.contains(a));
+        final hasProtected = aliases.any(
+          (a) => pLower == a || pLower.contains(a),
+        );
         if (hasTarget && hasProtected) return true;
       }
 
@@ -321,8 +308,8 @@ class ProtectionNotifier extends ChangeNotifier {
     final message = isLock
         ? 'Jatah sesi harian Anda untuk $displayName sudah habis. Kembali lagi besok.'
         : (_snap.status == ProtectionStatus.cooldown && cooldownRem > 0)
-            ? 'Aplikasi $displayName sedang dalam masa jeda (cooldown). Waktu istirahat tersisa: ${(cooldownRem ~/ 60).toString().padLeft(2, '0')}:${(cooldownRem % 60).toString().padLeft(2, '0')}.'
-            : 'Waktu buka $displayName sudah habis. Tarik napas sejenak.';
+        ? 'Aplikasi $displayName sedang dalam masa jeda (cooldown). Waktu istirahat tersisa: ${(cooldownRem ~/ 60).toString().padLeft(2, '0')}:${(cooldownRem % 60).toString().padLeft(2, '0')}.'
+        : 'Waktu buka $displayName sudah habis. Tarik napas sejenak.';
 
     PlatformService.showOverlayBlocker(
       title: title,
@@ -346,8 +333,12 @@ class ProtectionNotifier extends ChangeNotifier {
               );
         final savedElapsed = (nativeState['elapsedSeconds'] as int?) ?? 0;
         final savedCooldown = (nativeState['cooldownRemaining'] as int?) ?? 0;
-        final sessions = ((nativeState['sessionsToday'] as int?) ?? 0).clamp(0, _settings.dailySessionLimit);
-        final totalDistraction = (nativeState['totalDistractionSeconds'] as int?) ?? 0;
+        final sessions = ((nativeState['sessionsToday'] as int?) ?? 0).clamp(
+          0,
+          _settings.dailySessionLimit,
+        );
+        final totalDistraction =
+            (nativeState['totalDistractionSeconds'] as int?) ?? 0;
         final resisted = (nativeState['resistedToday'] as int?) ?? 0;
         final enabled = _snap.protectionEnabled;
 
@@ -392,7 +383,9 @@ class ProtectionNotifier extends ChangeNotifier {
       var sessions = rawSessions.clamp(0, _settings.dailySessionLimit);
 
       // Cooldown naturally elapsed while app was closed or swiped away
-      if (savedStatus == ProtectionStatus.cooldown && savedCooldownUntil > 0 && nowMs >= savedCooldownUntil) {
+      if (savedStatus == ProtectionStatus.cooldown &&
+          savedCooldownUntil > 0 &&
+          nowMs >= savedCooldownUntil) {
         sessions = (sessions + 1).clamp(0, _settings.dailySessionLimit);
         savedStatus = (sessions >= _settings.dailySessionLimit)
             ? ProtectionStatus.dailyLocked
@@ -474,7 +467,9 @@ class ProtectionNotifier extends ChangeNotifier {
     if (isAppProtected(appName)) {
       _currentForegroundApp = appName;
       final storedElapsed = _prefs.getInt(_kElapsed) ?? 0;
-      final currentElapsed = storedElapsed > _snap.elapsedSeconds ? storedElapsed : _snap.elapsedSeconds;
+      final currentElapsed = storedElapsed > _snap.elapsedSeconds
+          ? storedElapsed
+          : _snap.elapsedSeconds;
       _snap = _snap.copyWith(
         status: ProtectionStatus.distracting,
         elapsedSeconds: currentElapsed,
@@ -493,7 +488,8 @@ class ProtectionNotifier extends ChangeNotifier {
       // In that case, we must not treat the protected app as "left" just because the app
       // went to the background. Keep the distraction timer alive until we know the app is no
       // longer protected or the user actually left that app.
-      if (_currentForegroundApp.isNotEmpty && isAppProtected(_currentForegroundApp)) {
+      if (_currentForegroundApp.isNotEmpty &&
+          isAppProtected(_currentForegroundApp)) {
         return;
       }
 
@@ -512,7 +508,9 @@ class ProtectionNotifier extends ChangeNotifier {
       final nextTotal = _snap.totalDistractionSecondsToday + 1;
       if (nextElapsed >= _settings.triggerSeconds) {
         _stopTicker();
-        final untilMs = DateTime.now().millisecondsSinceEpoch + (_settings.cooldownSeconds * 1000);
+        final untilMs =
+            DateTime.now().millisecondsSinceEpoch +
+            (_settings.cooldownSeconds * 1000);
         _prefs.setInt('cooldown_until_epoch_ms', untilMs);
         _snap = _snap.copyWith(
           status: ProtectionStatus.cooldown,
@@ -539,8 +537,10 @@ class ProtectionNotifier extends ChangeNotifier {
       final remaining = _snap.cooldownRemainingSeconds - 1;
       if (remaining <= 0) {
         _stopTicker();
-        final nextSessions =
-            (_snap.sessionsToday + 1).clamp(0, _settings.dailySessionLimit);
+        final nextSessions = (_snap.sessionsToday + 1).clamp(
+          0,
+          _settings.dailySessionLimit,
+        );
         final isMax = nextSessions >= _settings.dailySessionLimit;
         _snap = _snap.copyWith(
           status: isMax ? ProtectionStatus.dailyLocked : ProtectionStatus.idle,
@@ -620,8 +620,9 @@ class ProtectionNotifier extends ChangeNotifier {
     _snap = _snap.copyWith(
       status: next,
       elapsedSeconds: 0,
-      cooldownRemainingSeconds:
-          next == ProtectionStatus.cooldown ? _settings.cooldownSeconds : 0,
+      cooldownRemainingSeconds: next == ProtectionStatus.cooldown
+          ? _settings.cooldownSeconds
+          : 0,
       sessionsToday: next == ProtectionStatus.cooldown
           ? (_snap.sessionsToday + 1).clamp(0, _settings.dailySessionLimit)
           : _snap.sessionsToday.clamp(0, _settings.dailySessionLimit),
