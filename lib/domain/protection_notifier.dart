@@ -489,6 +489,14 @@ class ProtectionNotifier extends ChangeNotifier {
 
   void onAppBackgrounded() {
     if (_snap.status == ProtectionStatus.distracting) {
+      // Refocus itself can be swiped away while the user is still inside a protected app.
+      // In that case, we must not treat the protected app as "left" just because the app
+      // went to the background. Keep the distraction timer alive until we know the app is no
+      // longer protected or the user actually left that app.
+      if (_currentForegroundApp.isNotEmpty && isAppProtected(_currentForegroundApp)) {
+        return;
+      }
+
       _stopTicker();
       _snap = _snap.copyWith(status: ProtectionStatus.idle);
       // Keeps elapsedSeconds paused (not reset to 0)

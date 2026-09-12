@@ -72,7 +72,12 @@ void main() {
     notifier.onAppForegrounded('TikTok');
     expect(notifier.snap.status, ProtectionStatus.distracting);
 
-    // Leave protected app: pauses and returns to idle
+    // If the protected app is still active, swiping the Refocus app away should not pause tracking.
+    notifier.onAppBackgrounded();
+    expect(notifier.snap.status, ProtectionStatus.distracting);
+
+    // Once the protected app is no longer active, the timer can pause.
+    notifier.toggleApp('TikTok');
     notifier.onAppBackgrounded();
     expect(notifier.snap.status, ProtectionStatus.idle);
   });
@@ -95,5 +100,18 @@ void main() {
 
     // Must still remain in cooldown, not transitioning to distracting
     expect(notifier.snap.status, ProtectionStatus.cooldown);
+  });
+
+  test('swiping app away should not pause distraction tracking while protected app remains active', () async {
+    final notifier = await ProtectionNotifier.create();
+    notifier.toggleProtection();
+
+    notifier.onAppForegrounded('TikTok');
+    expect(notifier.snap.status, ProtectionStatus.distracting);
+
+    // Simulate the app being swiped away from recents while a protected app was still active.
+    // The app itself should not be mistaken for leaving the protected app.
+    notifier.onAppBackgrounded();
+    expect(notifier.snap.status, ProtectionStatus.distracting);
   });
 }

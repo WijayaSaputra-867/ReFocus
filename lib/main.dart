@@ -46,11 +46,42 @@ class _BootstrapState extends State<_Bootstrap> {
       future: _init,
       builder: (context, snap) {
         if (!snap.hasData) {
-          // Instant dark frame — no black screen gap
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: buildTheme(),
-            home: const Scaffold(backgroundColor: AppColors.background),
+            home: Scaffold(
+              backgroundColor: AppColors.background,
+              body: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 68,
+                      height: 68,
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: const Icon(
+                        Icons.shield_outlined,
+                        size: 34,
+                        color: AppColors.accentIdle,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppColors.accentIdle,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           );
         }
         final r = snap.data!;

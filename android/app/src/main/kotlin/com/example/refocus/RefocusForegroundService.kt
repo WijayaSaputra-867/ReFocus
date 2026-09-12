@@ -566,19 +566,26 @@ class RefocusForegroundService : Service() {
                 }
             }
         } else {
-            // Left protected app: pause the distraction session! (Do NOT reset elapsed to 0!)
+            // If the foreground app cannot be detected for a moment (for example, while the
+            // Refocus app itself is swiped away from recents), do not immediately clear the
+            // active distraction state. Keep tracking until we confirm the user actually left the
+            // protected app.
             if (status == "distracting") {
-                prefs.edit()
-                    .putString(K_STATUS, "idle")
-                    .apply()
-                val appName = currentActivePackage?.let { getAppDisplayName(it) } ?: "Aplikasi"
-                if (elapsed > 0) {
-                    updateForegroundNotification(
-                        "Refocus • $appName",
-                        "Sesi dijeda: ${formatSeconds(elapsed)} / ${formatSeconds(triggerSec)}"
-                    )
-                } else {
-                    updateForegroundNotification("Refocus", "Proteksi aktif di latar belakang")
+                val activePkg = currentActivePackage
+                val stillProtected = activePkg != null && isProtectedApp(activePkg)
+                if (!stillProtected) {
+                    prefs.edit()
+                        .putString(K_STATUS, "idle")
+                        .apply()
+                    val appName = currentActivePackage?.let { getAppDisplayName(it) } ?: "Aplikasi"
+                    if (elapsed > 0) {
+                        updateForegroundNotification(
+                            "Refocus • $appName",
+                            "Sesi dijeda: ${formatSeconds(elapsed)} / ${formatSeconds(triggerSec)}"
+                        )
+                    } else {
+                        updateForegroundNotification("Refocus", "Proteksi aktif di latar belakang")
+                    }
                 }
             }
         }
@@ -586,12 +593,15 @@ class RefocusForegroundService : Service() {
 
     // ── Overlay & Notification Blocker ────────────────────────────────────────
 
+    fun isOverlayVisible(): Boolean = overlayView != null
+
     private fun triggerBlocker(isDailyLock: Boolean) {
+        if (overlayView != null || RefocusAccessibilityService.instance?.isOverlayVisible() == true) {
+            return
+        }
         val now = System.currentTimeMillis()
-        if (now - lastBlockerShownAt < 2_000) {
-            if (overlayView == null) {
-                kickToHome()
-            }
+        if (now - lastBlockerShownAt < 6_000L) {
+            kickToHome()
             return
         }
         lastBlockerShownAt = now
@@ -614,6 +624,7 @@ class RefocusForegroundService : Service() {
     }
 
     private fun showOverlay(title: String, message: String, seconds: Int) {
+        if (overlayView != null) return
         if (!canDrawOverlays()) {
             Log.w(TAG, "Cannot draw overlay: SYSTEM_ALERT_WINDOW not granted, kicking to home")
             kickToHome()
@@ -621,7 +632,8 @@ class RefocusForegroundService : Service() {
         }
 
         handler.post {
-            dismissOverlay() // remove any previous one
+            if (overlayView != null) return@post
+            dismissOverlay() // safety clean
 
             val ctx = ContextThemeWrapper(applicationContext, android.R.style.Theme_DeviceDefault_NoActionBar)
             val density = resources.displayMetrics.density

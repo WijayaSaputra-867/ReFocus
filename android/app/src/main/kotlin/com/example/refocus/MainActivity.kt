@@ -32,10 +32,13 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.RenderMode
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    override fun getRenderMode(): RenderMode = RenderMode.texture
+
     private val channelName = "com.example.refocus/platform"
 
     private var activeOverlayView: View? = null
@@ -297,7 +300,7 @@ class MainActivity : FlutterActivity() {
             }
 
             if (activeOverlayView != null) {
-                dismissOverlay(wm)
+                return@runOnUiThread
             }
 
             val themedContext = ContextThemeWrapper(this, android.R.style.Theme_DeviceDefault_NoActionBar)

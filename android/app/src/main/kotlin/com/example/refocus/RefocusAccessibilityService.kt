@@ -127,12 +127,18 @@ class RefocusAccessibilityService : AccessibilityService() {
         }
     }
 
+    fun isOverlayVisible(): Boolean = activeOverlayView != null
+
     private fun showBlockerOverlay(isDailyLock: Boolean, cooldownRemaining: Int) {
+        if (activeOverlayView != null || RefocusForegroundService.instance?.isOverlayVisible() == true) {
+            return
+        }
         val now = System.currentTimeMillis()
-        if (now - lastBlockerShownAt < 2_000) return
+        if (now - lastBlockerShownAt < 6_000L) return
         lastBlockerShownAt = now
 
         handler.post {
+            if (activeOverlayView != null) return@post
             dismissOverlay()
             val ctx = ContextThemeWrapper(this, android.R.style.Theme_DeviceDefault_NoActionBar)
             val density = resources.displayMetrics.density
